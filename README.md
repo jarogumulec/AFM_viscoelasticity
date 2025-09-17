@@ -84,7 +84,7 @@ Reads metadata and column info from a `.jpk-force-map`.
 
 **Usage:**
 ```powershell
-.env\Scripts\python.exe afm_read_metadata.py
+.venv\Scripts\python.exe afm_read_metadata.py
 ```
 
 ---
@@ -95,10 +95,10 @@ Exports **time–force** and **time–indentation** for one curve.
 **Usage:**
 ```powershell
 # by index
-.env\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --idx 45 --units nm-nN --out curve_045.csv
+.venv\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --idx 45 --units nm-nN --out curve_045.csv
 
 # by grid row/col
-.env\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --row 3 --col 5 --units SI --out curve_r3_c5.csv
+.venv\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --row 3 --col 5 --units SI --out curve_r3_c5.csv
 ```
 
 ---
@@ -108,8 +108,8 @@ Plots exported CSV (segments colored separately).
 
 **Usage:**
 ```powershell
-.env\Scripts\python.exe plot_curve_csv.py .\curve_045.csv
-.env\Scripts\python.exe plot_curve_csv.py .\curve_045.csv --save .\curve_045
+.venv\Scripts\python.exe plot_curve_csv.py .\curve_045.csv
+.venv\Scripts\python.exe plot_curve_csv.py .\curve_045.csv --save .\curve_045
 ```
 
 ---
@@ -124,10 +124,10 @@ If only one variable is present, it is plotted on the main axis.
 **Usage:**
 ```powershell
 # Show interactively
-.env\Scripts\python.exe plot_hold_dualy_csv.py .\curve_045.csv
+.venv\Scripts\python.exe plot_hold_dualy_csv.py .\curve_045.csv
 
 # Save PNG
-.env\Scripts\python.exe plot_hold_dualy_csv.py .\curve_045.csv --save .\curve_045_hold.png
+.venv\Scripts\python.exe plot_hold_dualy_csv.py .\curve_045.csv --save .\curve_045_hold.png
 ```
 
 ---
@@ -136,12 +136,12 @@ If only one variable is present, it is plotted on the main axis.
 
 - Always install with the venv’s Python:
   ```powershell
-  .env\Scripts\python.exe -m pip install -r requirements.txt
+  .venv\Scripts\python.exe -m pip install -r requirements.txt
   ```
 
 - If VS Code runs the wrong Python, select:
   ```
-  .env\Scripts\python.exe
+  .venv\Scripts\python.exe
   ```
 
 ---
