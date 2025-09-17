@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+
+# AFM data
+PC-3-2029-bleb-25-dish1-data-2025.09.05-10.47.17.093.jpk-force-map
