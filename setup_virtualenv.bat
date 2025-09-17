@@ -1,14 +1,25 @@
 @echo off
-REM Full path to python.exe
-set PYTHON="C:\Users\Jaro-work\AppData\Local\Programs\Python\Python312\python.exe"
+setlocal
+REM Project root = folder of this script
+set "PROJECT_DIR=%~dp0"
+set "VENV=%PROJECT_DIR%venv"
+set "REQ=%PROJECT_DIR%requirements.txt"
 
-%PYTHON% -m venv venv
+REM 1) Create venv if missing (uses Windows launcher 'py')
+if not exist "%VENV%\Scripts\python.exe" (
+  py -3 -m venv "%VENV%"
+)
 
-call venv\Scripts\activate
-
-%PYTHON% -m pip install --upgrade pip wheel
-%PYTHON% -m pip install -r requirements.txt
+REM 2) Use the venv's Python for all installs (guarantees correct site-packages)
+"%VENV%\Scripts\python.exe" -m pip install --upgrade pip wheel
+if exist "%REQ%" (
+  "%VENV%\Scripts\python.exe" -m pip install -r "%REQ%"
+)
 
 echo.
-echo Virtual environment ready. To activate later, run:
-echo   venv\Scripts\activate
+echo Virtual environment ready.
+echo Use it like:
+echo   "%VENV%\Scripts\python.exe" extract_curves.py
+echo Or activate:
+echo   %VENV%\Scripts\activate
+endlocal
