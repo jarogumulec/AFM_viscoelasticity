@@ -1,0 +1,62 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import afmformats as af
+import seaborn as sns
+import pandas as pd
+
+
+file_name = '/data/2025-09-05/PC-3-2029-bleb-25-dish1-data-2025.09.05-10.47.17.093.jpk-force-map'
+ind = 45
+SEG_NAMES = {0: "approach", 1: "hold", 2: "retract"}
+
+
+
+afm_group = af.AFMGroup(file_name)
+
+
+metadata = afm_group[0].metadata
+n_x = metadata['grid shape x']
+n_y = metadata['grid shape y']
+spring_constant = metadata['spring constant']
+light_lever_sensitivity = metadata['sensitivity']
+invOLS = 1 / light_lever_sensitivity
+
+curve = afm_group[ind]
+# curve.columns = ['force', 'height (measured)', 'height (piezo)', 'segment', 'time']
+
+df = pd.DataFrame()
+for col in curve.columns:
+    df[col] = curve[col]
+
+
+
+df['segment'] = [SEG_NAMES[x] for x in df['segment']]
+
+
+
+sns.lineplot(df, x='time', y='height (measured)', hue='segment', palette='tab10')
+plt.show()
+
+sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10')
+plt.show()
+
+sns.lineplot(df, x='time', y='force', hue='segment', palette='tab10')
+plt.show()
+
+
+df['deflection'] = df['force'] / spring_constant
+
+# # get 10% of the approach indexes
+# inds_basline = np.where(df['segment'] == 'approach')[0]
+# inds_basline = inds_basline[0:int(0.1*len(inds_basline))]
+
+# z0 = np.mean(df['height (measured)'][inds_basline])
+# d0 = np.mean(df['deflection'][inds_basline])
+
+# df['indentation'] = z0 - df['height (measured)'] + d0
+
+
+
+
+
+contact 
