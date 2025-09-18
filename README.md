@@ -7,9 +7,6 @@
 - Height (measured) (m): effective tip position relative to the undeflected cantilever.
   - height (measured) = height (piezo) − deflection
 
-Notes
-- Signs can vary by setup; the equations above follow the common convention used in this repo.
-- All signals should be in SI units after calibration (m, N, s).
 
 ## Indentation (δ)
 Indentation is how much the tip has pressed into the sample after contact.
@@ -72,5 +69,3 @@ Two clamp regimes:
 - indentation δ(t) = (h_contact − h_measured(t)) = [z_piezo(t) − z_piezo_contact] − [defl(t) − defl_contact]
 - Force-clamp active residual: h_active = h_live − (h0 + F · J_passive)
 - Height-clamp active residual: F_active = F_live − F_passive
-
-
