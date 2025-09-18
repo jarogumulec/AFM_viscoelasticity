@@ -78,8 +78,6 @@ df['delta'] = (df['height (piezo)'] - z_c) + (df['deflection'] - d_c)
 
 
 
-
-
 sns.lineplot(df, x='time', y='height (piezo) - height (measured)', hue='segment', palette='tab10')
 plt.show()
 
