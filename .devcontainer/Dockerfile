@@ -5,5 +5,5 @@ RUN apt-get update && \
     pip install --no-cache-dir jupyter && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY ../requirements.txt .
 RUN pip install -r requirements.txt
