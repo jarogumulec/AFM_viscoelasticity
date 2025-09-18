@@ -5,8 +5,7 @@ This repository provides a **minimal, Windows-friendly** workflow for working wi
 - Creating and using a **virtual environment (venv)** on Windows
 - Reading **metadata** from a map (`afm_read_metadata.py`)
 - Exporting **time–force** and **time–indentation** for a **single curve** (`export_one_curve.py`)
-- Plotting exported **CSV** (`plot_curve_csv.py`)
-- Plotting **only the hold segment** with dual Y axes (force + indentation) (`plot_hold_dualy_csv.py`)
+- Visualising exported **CSV** in four complementary plots (`plot_curve_csv.py`)
 
 > Designed for “creep-compliance” maps with segments **0=approach, 1=hold, 2=retract**.
 
@@ -84,7 +83,7 @@ Reads metadata and column info from a `.jpk-force-map`.
 
 **Usage:**
 ```powershell
-.venv\Scripts\python.exe afm_read_metadata.py
+.\venv\Scripts\python.exe afm_read_metadata.py
 ```
 
 ---
@@ -95,39 +94,37 @@ Exports **time–force** and **time–indentation** for one curve.
 **Usage:**
 ```powershell
 # by index
-.venv\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --idx 45 --units nm-nN --out curve_045.csv
+.\venv\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --idx 45 --units nm-nN --out curve_045.csv
 
 # by grid row/col
-.venv\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --row 3 --col 5 --units SI --out curve_r3_c5.csv
+.\venv\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --row 3 --col 5 --units SI --out curve_r3_c5.csv
 ```
 
 ---
 
 ### C) `plot_curve_csv.py`
-Plots exported CSV (segments colored separately).
+Creates **four plots** from an exported curve CSV:
 
-**Usage:**
-```powershell
-.venv\Scripts\python.exe plot_curve_csv.py .\curve_045.csv
-.venv\Scripts\python.exe plot_curve_csv.py .\curve_045.csv --save .\curve_045
-```
-
----
-
-### D) `plot_hold_dualy_csv.py`
-Plots **only the hold segment** (`segment==1`) with **dual Y axes**:  
-- Left Y: force  
-- Right Y: indentation  
-
-If only one variable is present, it is plotted on the main axis.
+1. Time vs force (segments colored)  
+2. Time vs indentation (segments colored)  
+3. Hold-only (segment==1) with dual Y axes (force + indentation)  
+4. Force vs indentation (segments colored)  
 
 **Usage:**
 ```powershell
 # Show interactively
-.venv\Scripts\python.exe plot_hold_dualy_csv.py .\curve_045.csv
+.\venv\Scripts\python.exe plot_curve_csv.py .\curve_045.csv
 
-# Save PNG
-.venv\Scripts\python.exe plot_hold_dualy_csv.py .\curve_045.csv --save .\curve_045_hold.png
+# Save all four PNGs with prefix
+.\venv\Scripts\python.exe plot_curve_csv.py .\curve_045.csv --save-prefix .\curve_045
+```
+
+This will produce files like:
+```
+curve_045_time_vs_force.png
+curve_045_time_vs_indentation.png
+curve_045_hold_dualy.png
+curve_045_force_vs_indentation.png
 ```
 
 ---
@@ -136,12 +133,12 @@ If only one variable is present, it is plotted on the main axis.
 
 - Always install with the venv’s Python:
   ```powershell
-  .venv\Scripts\python.exe -m pip install -r requirements.txt
+  .\venv\Scripts\python.exe -m pip install -r requirements.txt
   ```
 
 - If VS Code runs the wrong Python, select:
   ```
-  .venv\Scripts\python.exe
+  .\venv\Scripts\python.exe
   ```
 
 ---
