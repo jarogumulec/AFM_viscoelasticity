@@ -34,29 +34,54 @@ df['segment'] = [SEG_NAMES[x] for x in df['segment']]
 
 
 
-sns.lineplot(df, x='time', y='height (measured)', hue='segment', palette='tab10')
-plt.show()
+# sns.lineplot(df, x='time', y='height (measured)', hue='segment', palette='tab10')
+# plt.show()
 
-sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10')
-plt.show()
+# sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10')
+# plt.show()
 
-sns.lineplot(df, x='time', y='force', hue='segment', palette='tab10')
-plt.show()
+# sns.lineplot(df, x='time', y='force', hue='segment', palette='tab10')
+# plt.show()
 
 
 df['deflection'] = df['force'] / spring_constant
+# height (piezo) - height (measured) = deflection
 
-# # get 10% of the approach indexes
-# inds_basline = np.where(df['segment'] == 'approach')[0]
-# inds_basline = inds_basline[0:int(0.1*len(inds_basline))]
 
-# z0 = np.mean(df['height (measured)'][inds_basline])
-# d0 = np.mean(df['deflection'][inds_basline])
+contact_index = df[df['segment'] == 'hold'].index[0]
 
-# df['indentation'] = z0 - df['height (measured)'] + d0
 
+z_c = df.at[contact_index, 'height (piezo)']
+d_c = df.at[contact_index, 'deflection']
 
 
 
+df['my height (measured)'] = df['height (piezo)'] - df['deflection']
+df['height / deflection'] = df['height (piezo)'] / df['deflection']
 
-contact 
+df['height (piezo) - height (measured)']  = df['height (piezo)'] - df['my height (measured)']
+df['delta'] = (df['height (piezo)'] - z_c) + (df['deflection'] - d_c)
+
+
+# sns.lineplot(df, x='time', y='delta', hue='segment', palette='tab10')
+# plt.show()
+
+
+# sns.lineplot(df, x='time', y='deflection', hue='segment', palette='tab10')
+# plt.show()
+
+
+# sns.lineplot(df, x='time', y='deflection', hue='segment', palette='tab10')
+# sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10', linestyle='--')
+# plt.show()
+
+
+
+
+
+
+sns.lineplot(df, x='time', y='height (piezo) - height (measured)', hue='segment', palette='tab10')
+plt.show()
+
+sns.lineplot(df, x='time', y='deflection', hue='segment', palette='tab10')
+plt.show()
