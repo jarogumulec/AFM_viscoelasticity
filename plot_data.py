@@ -33,13 +33,6 @@ for col in curve.columns:
 df['segment'] = [SEG_NAMES[x] for x in df['segment']]
 
 
-
-# sns.lineplot(df, x='time', y='height (measured)', hue='segment', palette='tab10')
-# plt.show()
-
-# sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10')
-# plt.show()
-
 # sns.lineplot(df, x='time', y='force', hue='segment', palette='tab10')
 # plt.show()
 
@@ -47,39 +40,3 @@ df['segment'] = [SEG_NAMES[x] for x in df['segment']]
 df['deflection'] = df['force'] / spring_constant
 # height (piezo) - height (measured) = deflection
 
-
-contact_index = df[df['segment'] == 'hold'].index[0]
-
-
-z_c = df.at[contact_index, 'height (piezo)']
-d_c = df.at[contact_index, 'deflection']
-
-
-
-df['my height (measured)'] = df['height (piezo)'] - df['deflection']
-df['height / deflection'] = df['height (piezo)'] / df['deflection']
-
-df['height (piezo) - height (measured)']  = df['height (piezo)'] - df['my height (measured)']
-df['delta'] = (df['height (piezo)'] - z_c) + (df['deflection'] - d_c)
-
-
-# sns.lineplot(df, x='time', y='delta', hue='segment', palette='tab10')
-# plt.show()
-
-
-# sns.lineplot(df, x='time', y='deflection', hue='segment', palette='tab10')
-# plt.show()
-
-
-# sns.lineplot(df, x='time', y='deflection', hue='segment', palette='tab10')
-# sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10', linestyle='--')
-# plt.show()
-
-
-
-
-sns.lineplot(df, x='time', y='height (piezo) - height (measured)', hue='segment', palette='tab10')
-plt.show()
-
-sns.lineplot(df, x='time', y='deflection', hue='segment', palette='tab10')
-plt.show()
