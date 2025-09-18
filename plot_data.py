@@ -38,7 +38,7 @@ df['segment'] = [SEG_NAMES[x] for x in df['segment']]
 
 df['deflection'] = df['force'] / spring_constant
 # height (piezo) - height (measured) = deflection
-
+#  height (measured) = height (piezo) - deflection
 
 
 df['force_filtered'] = gaussian_filter1d(df['force'], sigma=50)
@@ -54,12 +54,12 @@ df['force_filtered'] = gaussian_filter1d(df['force'], sigma=50)
 # sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10')
 # plt.show()
 
-sns.lineplot(df, x='time', y='height (measured)', hue='segment', palette='tab10')
-plt.show()
-
-
-# sns.lineplot(df, x='height (measured)', y='force', hue='segment', palette='tab10')
+# sns.lineplot(df, x='time', y='height (measured)', hue='segment', palette='tab10')
 # plt.show()
+
+
+sns.lineplot(df, x='height (measured)', y='force', hue='segment', palette='tab10')
+plt.show()
 
 
 
