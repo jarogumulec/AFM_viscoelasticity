@@ -3,7 +3,7 @@ import numpy as np
 import afmformats as af
 import seaborn as sns
 import pandas as pd
-
+from scipy.ndimage import gaussian_filter1d
 
 file_name = '/data/2025-09-05/PC-3-2029-bleb-25-dish1-data-2025.09.05-10.47.17.093.jpk-force-map'
 ind = 45
@@ -41,18 +41,29 @@ df['deflection'] = df['force'] / spring_constant
 
 
 
-sns.lineplot(df, x='time', y='force', hue='segment', palette='tab10')
-plt.show()
+df['force_filtered'] = gaussian_filter1d(df['force'], sigma=50)
 
-sns.lineplot(df, x='time', y='deflection', hue='segment', palette='tab10')
-plt.show()
 
-sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10')
-plt.show()
+
+# sns.lineplot(df, x='time', y='force', hue='segment', palette='tab10')
+# plt.show()
+
+# sns.lineplot(df, x='time', y='deflection', hue='segment', palette='tab10')
+# plt.show()
+
+# sns.lineplot(df, x='time', y='height (piezo)', hue='segment', palette='tab10')
+# plt.show()
 
 sns.lineplot(df, x='time', y='height (measured)', hue='segment', palette='tab10')
 plt.show()
 
 
-sns.lineplot(df, x='height (measured)', y='force', hue='segment', palette='tab10')
-plt.show()
+# sns.lineplot(df, x='height (measured)', y='force', hue='segment', palette='tab10')
+# plt.show()
+
+
+
+
+
+# sns.lineplot(df, x='time', y='force_filtered', hue='segment', palette='tab10')
+# plt.show()

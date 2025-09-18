@@ -1,147 +1,76 @@
-# README — AFM (JPK) minimal toolkit
+# AFM signals and contractility (quick guide)
 
-This repository provides a **minimal, Windows-friendly** workflow for working with JPK `*.jpk-force-map` files:
+## Signal relationships
+- Deflection (m): vertical bending of the cantilever measured by the optical lever.
+  - force (N) = spring_constant (N/m) × deflection (m)
+- Height (piezo) (m): Z position commanded to the piezo.
+- Height (measured) (m): effective tip position relative to the undeflected cantilever.
+  - height (measured) = height (piezo) − deflection
 
-- Creating and using a **virtual environment (venv)** on Windows
-- Reading **metadata** from a map (`afm_read_metadata.py`)
-- Exporting **time–force** and **time–indentation** for a **single curve** (`export_one_curve.py`)
-- Plotting exported **CSV** (`plot_curve_csv.py`)
-- Plotting **only the hold segment** with dual Y axes (force + indentation) (`plot_hold_dualy_csv.py`)
+Notes
+- Signs can vary by setup; the equations above follow the common convention used in this repo.
+- All signals should be in SI units after calibration (m, N, s).
 
-> Designed for “creep-compliance” maps with segments **0=approach, 1=hold, 2=retract**.
+## Indentation (δ)
+Indentation is how much the tip has pressed into the sample after contact.
 
----
+Equivalent formulas (pick one consistent with your data):
+- Using “measured”:
+  - δ(t) = max(0, h_contact − h_measured(t))
+- Using piezo and deflection explicitly:
+  - δ(t) = [z_piezo(t) − z_piezo_contact] − [defl(t) − defl_contact]
 
-## 0) Prerequisites
+How to find the contact point
+1) On the approach segment, find the first index where force > threshold (e.g., 2–3× noise std).
+2) Record contact values: h_contact = height (measured)[i_c], z_piezo_contact, defl_contact.
+3) Set δ=0 at contact and compute δ(t) with one of the formulas above for t ≥ contact.
 
-- **Windows 10/11**
-- **Python 3.11+** (3.12 tested). Confirm with:
-  ```powershell
-  python --version
-  ```
+Tip
+- For stress, estimate contact area A from δ and tip geometry (e.g., spherical Hertz: a ≈ sqrt(R·δ), A = πa², stress = F/A).
 
----
+## Contractility vs viscoelastic creep (using myosin-inhibited data)
+Goal: separate passive viscoelastic response from active contractility by using a passive reference measured under myosin inhibition (e.g., blebbistatin).
 
-## 1) Create & use a virtual environment (venv)
+Two clamp regimes:
 
-### Batch script (recommended)
-Use `setup_virtualenv.bat`:
+### A) Force clamp (constant force during hold)
+- What changes: displacement (height) over time; force stays near setpoint.
+- Model: h_live(t) = h0 + F · J_passive(t) + h_active(t)
+- Steps:
+  1) Acquire myosin-inhibited force-clamp data at the same force setpoint and timing.
+  2) Fit a passive creep compliance J_passive(t) on inhibited data (e.g., power law J(t)=J0·(t/t_ref)^α).
+  3) For each live curve, predict passive displacement: h_passive(t) = h0 + F · J_passive(t).
+  4) Active residual: h_active(t) = h_live(t) − h_passive(t).
+  5) Report contractility metrics:
+     - Δh_active = h_active(t_end) − h_active(t_start)  [m]
+     - Last-window rate dh_active/dt  [m/s]
+     - Optional normalization by load: Δh_active/F  [m/N], (dh_active/dt)/F  [m/(N·s)]
 
-```bat
-@echo off
-setlocal
-set "PROJECT_DIR=%~dp0"
-set "VENV=%PROJECT_DIR%venv"
-set "REQ=%PROJECT_DIR%requirements.txt"
+### B) Height/indentation clamp (constant geometry during hold)
+- What changes: force over time; geometry (height or δ) is held constant.
+- Model: F_live(t) = F_passive(t) + F_active(t)
+- Steps:
+  1) Acquire myosin-inhibited height- (or indentation-) clamp data with the same indentation history.
+  2) Fit a passive force relaxation model on inhibited data (e.g., power-law or SLS) to get F_passive(t).
+  3) For each live curve, predict F_passive(t) under the same δ(t) and subtract:
+     - F_active(t) = F_live(t) − F_passive(t)
+  4) Report contractility metrics:
+     - Steady active force (mean over last window)  [N]
+     - Active buildup/relaxation amplitude  [N]
+     - Optional time constants if fitting kinetics
 
-if not exist "%VENV%\Scripts\python.exe" (
-  py -3 -m venv "%VENV%"
-)
+## Practical checklist
+- Match protocols: same setpoint/indentation, dwell time, rate, temperature.
+- Calibrate: spring constant and sensitivity (invOLS) to get force/deflection in SI units.
+- Clamp quality: low force CV (%) in force clamp; stable height/δ in height clamp.
+- Choose consistent sign conventions and zero levels (contact).
+- Normalize metrics (per N or per area) when comparing across maps/experiments.
 
-"%VENV%\Scripts\python.exe" -m pip install --upgrade pip wheel
-if exist "%REQ%" (
-  "%VENV%\Scripts\python.exe" -m pip install -r "%REQ%"
-)
+## Minimal formulas recap
+- deflection = force / spring_constant
+- height (measured) = height (piezo) − deflection
+- indentation δ(t) = (h_contact − h_measured(t)) = [z_piezo(t) − z_piezo_contact] − [defl(t) − defl_contact]
+- Force-clamp active residual: h_active = h_live − (h0 + F · J_passive)
+- Height-clamp active residual: F_active = F_live − F_passive
 
-echo.
-echo Virtual environment ready.
-echo Run scripts with:
-echo   "%VENV%\Scripts\python.exe" your_script.py
-echo Or activate (optional):
-echo   %VENV%\Scripts\activate
-endlocal
-```
 
-Minimal `requirements.txt`:
-```txt
-afmformats
-pandas
-numpy
-matplotlib
-```
-
-Run in PowerShell:
-```powershell
-.\setup_virtualenv.bat
-```
-
----
-
-## 2) Segment conventions
-
-- `0 = approach`
-- `1 = hold`
-- `2 = retract`
-
-For creep analysis, use only `segment==1`.
-
----
-
-## 3) Scripts
-
-### A) `afm_read_metadata.py`
-Reads metadata and column info from a `.jpk-force-map`.
-
-**Usage:**
-```powershell
-.venv\Scripts\python.exe afm_read_metadata.py
-```
-
----
-
-### B) `export_one_curve.py`
-Exports **time–force** and **time–indentation** for one curve.
-
-**Usage:**
-```powershell
-# by index
-.venv\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --idx 45 --units nm-nN --out curve_045.csv
-
-# by grid row/col
-.venv\Scripts\python.exe export_one_curve.py ".\map.jpk-force-map" --row 3 --col 5 --units SI --out curve_r3_c5.csv
-```
-
----
-
-### C) `plot_curve_csv.py`
-Plots exported CSV (segments colored separately).
-
-**Usage:**
-```powershell
-.venv\Scripts\python.exe plot_curve_csv.py .\curve_045.csv
-.venv\Scripts\python.exe plot_curve_csv.py .\curve_045.csv --save .\curve_045
-```
-
----
-
-### D) `plot_hold_dualy_csv.py`
-Plots **only the hold segment** (`segment==1`) with **dual Y axes**:  
-- Left Y: force  
-- Right Y: indentation  
-
-If only one variable is present, it is plotted on the main axis.
-
-**Usage:**
-```powershell
-# Show interactively
-.venv\Scripts\python.exe plot_hold_dualy_csv.py .\curve_045.csv
-
-# Save PNG
-.venv\Scripts\python.exe plot_hold_dualy_csv.py .\curve_045.csv --save .\curve_045_hold.png
-```
-
----
-
-## 4) Troubleshooting
-
-- Always install with the venv’s Python:
-  ```powershell
-  .venv\Scripts\python.exe -m pip install -r requirements.txt
-  ```
-
-- If VS Code runs the wrong Python, select:
-  ```
-  .venv\Scripts\python.exe
-  ```
-
----
