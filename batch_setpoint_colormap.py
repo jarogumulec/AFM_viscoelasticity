@@ -12,7 +12,7 @@ from skimage import io as skio
 # - For each file matching the pattern, compute the setpoint height image
 #   (last sample of approach segment) and save a raw afmhot colormap PNG.
 
-folder = '/data/2025-09-05'
+folder = 'd:/temp/25-09-05 - AFM blebbi/'
 pattern = '*.jpk-force-map'
 
 
