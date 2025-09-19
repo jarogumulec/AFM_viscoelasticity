@@ -4,3 +4,4 @@ matplotlib
 afmformats
 scikit-image
 seaborn
+scipy

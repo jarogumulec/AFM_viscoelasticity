@@ -6,36 +6,33 @@ import numpy as np
 import pandas as pd
 import afmformats as af
 from skimage import io as skio
+from skimage.measure import label as cc_label
 import matplotlib.pyplot as plt
 
 # Minimal configuration
 folder = '/data/2025-09-05'
 pattern = '*.jpk-force-map'
-masks_dir = '/data/2025-09-05_masks'
-out_dir = 'plots'
+masks_dir = '/data/2025-09-05/masky'
+out_dir = '/data/2025-09-05_curves'
+### jeden file je naprd - ma kratke hold krivky - tak mu vymazat krivky před dalším krokem!!!!
 
-# Resample sizes per segment (approach, hold, retract)
-SEG_SIZES = {0: 200, 1: 60, 2: 200}
+
+# Segment names (no resampling/normalization; we only use HOLD)
 SEG_NAMES = {0: 'approach', 1: 'hold', 2: 'retract'}
-GROUP_COLORS = {
-    'ctrl-dish1': '#1f77b4',
-    'ctrl-dish2': '#ff7f0e',
-    'bleb-dish1': '#2ca02c',
-    'bleb-dish2': '#d62728',
-}
 
 
 def find_mask_for(base: str) -> str | None:
     candidates = [
-        os.path.join(masks_dir, f'{base}.png'),
-        os.path.join(masks_dir, f'{base}_mask.png'),
-        os.path.join(masks_dir, f'{base}.jpg'),
-        os.path.join(masks_dir, f'{base}.jpeg'),
+        os.path.join(masks_dir, f'{base}.tif'),
+        # os.path.join(masks_dir, f'{base}.png'),
+        # os.path.join(masks_dir, f'{base}_mask.png'),
+        # os.path.join(masks_dir, f'{base}.jpg'),
+        # os.path.join(masks_dir, f'{base}.jpeg'),
     ]
     for p in candidates:
         if os.path.exists(p):
             return p
-    globs = glob(os.path.join(masks_dir, f'{base}*.png'))
+    globs = glob(os.path.join(masks_dir, f'{base}*.tif'))
     return globs[0] if globs else None
 
 
@@ -54,6 +51,7 @@ def rgb_red_mask(mask_img: np.ndarray) -> np.ndarray:
 
 
 def file_group_from_name(name: str) -> str:
+    # kept for potential future use; not used in this script version
     s = name.lower()
     cond = 'ctrl' if 'ctrl' in s else ('bleb' if 'bleb' in s else 'unknown')
     dish = 'dish1' if 'dish1' in s else ('dish2' if 'dish2' in s else 'unknown')
@@ -70,43 +68,38 @@ def curve_grid_xy(i: int, curve, n_x: int, n_y: int) -> Tuple[int, int]:
     return int(gx), int(gy)
 
 
-def resample_segment(values: np.ndarray, seg_mask: np.ndarray, size: int) -> np.ndarray | None:
-    if size <= 1:
-        return None
-    idxs = np.flatnonzero(seg_mask)
-    if idxs.size < 2:
-        return None
-    # Normalize by sample index position (0..1)
-    t = (idxs - idxs[0]) / (idxs[-1] - idxs[0])
-    xgrid = np.linspace(0.0, 1.0, size)
-    try:
-        # values might be pandas Series or numpy
-        v = np.asarray(values)[idxs]
-        # Handle NaNs by simple forward/backward fill before interp
-        if np.isnan(v).any():
-            # simple fill: replace NaNs with nearest non-NaN
-            notnan = ~np.isnan(v)
-            if not notnan.any():
-                return None
-            v = np.interp(np.arange(len(v)), np.flatnonzero(notnan), v[notnan])
-        y = np.interp(xgrid, t, v)
-        return y
-    except Exception:
-        return None
+# No resampling: keep original time axis per curve
 
 
-def process_file(path: str) -> Tuple[str, Dict[int, np.ndarray] | None, Dict[int, np.ndarray] | None]:
+def find_time_column(df: pd.DataFrame) -> str | None:
+    """Heuristically find a time column in seconds in curve DataFrame."""
+    candidates = [
+        'time (s)', 'Time (s)', 'time_s', 'timestamp (s)', 'timestamp_s', 'time'
+    ]
+    cols_lower = {c.lower(): c for c in df.columns}
+    for cand in candidates:
+        lc = cand.lower()
+        if lc in cols_lower:
+            return cols_lower[lc]
+    # fuzzy: any column containing 'time'
+    for c in df.columns:
+        if 'time' in c.lower():
+            return c
+    return None
+
+
+def process_file(path: str) -> None:
     base = os.path.splitext(os.path.basename(path))[0]
     mask_path = find_mask_for(base)
     if mask_path is None:
         print(f'Skip {base}: mask not found')
-        return base, None, None
+        return
 
     try:
         group = af.AFMGroup(path)
     except Exception as e:
         print(f'Skip {base}: cannot open ({e})')
-        return base, None, None
+        return
 
     md0 = group[0].metadata
     n_x = int(md0['grid shape x'])
@@ -116,21 +109,34 @@ def process_file(path: str) -> Tuple[str, Dict[int, np.ndarray] | None, Dict[int
         mask_img = skio.imread(mask_path)
     except Exception as e:
         print(f'Skip {base}: cannot read mask ({e})')
-        return base, None, None
+        return
 
     mask2d = rgb_red_mask(mask_img)
     if mask2d.shape != (n_y, n_x):
         print(f'Skip {base}: mask shape {mask2d.shape} != grid shape {(n_y, n_x)}')
-        return base, None, None
+        return
 
-    # Collect resampled curves per segment
-    seg_curves: Dict[int, List[np.ndarray]] = {0: [], 1: [], 2: []}
+    # Connected components (cells) from mask
+    labels = cc_label(mask2d.astype(np.uint8), connectivity=1)
+    n_components = labels.max()
+    if n_components == 0:
+        print(f'Skip {base}: mask has no connected components')
+        return
+
+    """
+    We will build, for each connected component, a list of raw hold-segment curves as
+    (time_from_start_s, height_um). Later we'll interpolate onto a common time grid
+    to produce a per-component mean±std in time units. Only the averaged CSV+PNG are saved.
+    """
+    comp_hold_times_raw: Dict[int, List[np.ndarray]] = {comp_id: [] for comp_id in range(1, n_components + 1)}
+    comp_hold_heights_um_raw: Dict[int, List[np.ndarray]] = {comp_id: [] for comp_id in range(1, n_components + 1)}
 
     for i, curve in enumerate(group):
         gx, gy = curve_grid_xy(i, curve, n_x, n_y)
         if gx < 0 or gx >= n_x or gy < 0 or gy >= n_y:
             continue
-        if not mask2d[gy, gx]:
+        comp_id = int(labels[gy, gx])
+        if comp_id == 0:
             continue
 
         # Build DataFrame for the curve
@@ -141,43 +147,96 @@ def process_file(path: str) -> Tuple[str, Dict[int, np.ndarray] | None, Dict[int
         seg = df['segment']
         h = df['height (measured)']
 
-        for s, size in SEG_SIZES.items():
-            seg_mask = (seg == s).to_numpy() if hasattr(seg, 'to_numpy') else (np.asarray(seg) == s)
-            y = resample_segment(np.asarray(h), seg_mask, size)
-            if y is not None and np.isfinite(y).any():
-                seg_curves[s].append(y)
+        # Only process HOLD segment (s == 1). No resampling.
+        seg_mask = (seg == 1).to_numpy() if hasattr(seg, 'to_numpy') else (np.asarray(seg) == 1)
+        idxs = np.flatnonzero(seg_mask)
+        if idxs.size >= 2:
+            t_col = find_time_column(df)
+            if t_col is not None:
+                try:
+                    t = np.asarray(df[t_col], dtype=float)
+                    # Save ORIGINAL time and height arrays for this curve's HOLD segment
+                    time_orig = t[idxs]
+                    height_um = np.asarray(h, dtype=float)[idxs] * 1e6
+                    if time_orig.size >= 2 and height_um.size == time_orig.size:
+                        # shift time to start at 0 for this curve
+                        t0 = float(time_orig[0])
+                        comp_hold_times_raw[comp_id].append(time_orig - t0)
+                        comp_hold_heights_um_raw[comp_id].append(height_um)
+                except Exception:
+                    pass
+    # Output per-component HOLD average curves (time domain): save CSV and plot
+    base_out_dir = os.path.join(out_dir, base)
+    os.makedirs(base_out_dir, exist_ok=True)
 
-    if not any(len(v) > 0 for v in seg_curves.values()):
-        print(f'Skip {base}: no curves selected by mask')
-        return base, None, None
+    components_with_data = 0
+    for comp_id in range(1, n_components + 1):
+        # Build averaged curve if we have any raw curves
+        t_list = comp_hold_times_raw.get(comp_id, [])
+        y_list = comp_hold_heights_um_raw.get(comp_id, [])
+        if not t_list or not y_list:
+            continue
 
-    # Compute per-file mean and std per segment
-    seg_mean: Dict[int, np.ndarray] = {}
-    seg_std: Dict[int, np.ndarray] = {}
-    for s, arrs in seg_curves.items():
-        if arrs:
-            A = np.vstack(arrs)
-            seg_mean[s] = np.nanmean(A, axis=0)
-            seg_std[s] = np.nanstd(A, axis=0)
+        # Determine common time domain: 0 .. min(max time among curves)
+        try:
+            t_max_common = min(float(np.max(t)) for t in t_list if t.size > 1)
+        except ValueError:
+            t_max_common = 0.0
+        if not np.isfinite(t_max_common) or t_max_common <= 0:
+            continue
+        # Simple uniform grid in seconds
+        n_points = 200
+        t_grid = np.linspace(0.0, t_max_common, n_points)
 
-    # Plot per-file mean curve: HOLD only
-    if 1 in seg_mean:
-        os.makedirs(out_dir, exist_ok=True)
+        mats: List[np.ndarray] = []
+        for t, y in zip(t_list, y_list):
+            if t.size < 2 or y.size != t.size:
+                continue
+            msk = np.isfinite(t) & np.isfinite(y)
+            t2 = t[msk]
+            y2 = y[msk]
+            if t2.size < 2:
+                continue
+            try:
+                y_grid = np.interp(t_grid, t2, y2)
+                mats.append(y_grid)
+            except Exception:
+                continue
+        if not mats:
+            continue
+        A = np.vstack(mats)
+        mean_um = np.nanmean(A, axis=0)
+        std_um = np.nanstd(A, axis=0)
+        n_curves = A.shape[0]
+
+        # Save CSV and PNG
+        df_out = pd.DataFrame({
+            'file': [base] * n_points,
+            'component_id': [comp_id] * n_points,
+            'time_s': t_grid,
+            'height_um_mean': mean_um,
+            'height_um_std': std_um,
+            'n_curves': [n_curves] * n_points,
+        })
+        csv_path = os.path.join(base_out_dir, f'{base}_comp{comp_id:03d}_hold_avg_time.csv')
+        df_out.to_csv(csv_path, index=False)
+
         fig, ax = plt.subplots(figsize=(6, 4), dpi=150)
-        x = np.linspace(0, 1, len(seg_mean[1]))
-        ax.plot(x, seg_mean[1] * 1e6, color='k', label='mean')
-        ax.fill_between(x, (seg_mean[1] - seg_std[1]) * 1e6, (seg_mean[1] + seg_std[1]) * 1e6,
-                        color='k', alpha=0.15, linewidth=0)
-        ax.set_title(f'{base} — hold (masked mean)')
-        ax.set_xlabel('normalized progress')
+        ax.plot(t_grid, mean_um, color='k', label='mean')
+        ax.fill_between(t_grid, mean_um - std_um, mean_um + std_um, color='k', alpha=0.15, linewidth=0)
+        ax.set_title(f'{base} — comp {comp_id} — hold (n={n_curves})')
+        ax.set_xlabel('time (s)')
         ax.set_ylabel('height (µm)')
         fig.tight_layout()
-        out_path = os.path.join(out_dir, f'{base}_hold_masked_mean_height_curve.png')
-        fig.savefig(out_path, dpi=150)
+        png_path = os.path.join(base_out_dir, f'{base}_comp{comp_id:03d}_hold_avg_time.png')
+        fig.savefig(png_path, dpi=150)
         plt.close(fig)
-        print(f'Saved per-file hold curve: {out_path}')
+        print(f'Saved: {csv_path} and {png_path}')
+        components_with_data += 1
 
-    return base, seg_mean, seg_std
+    if components_with_data == 0:
+        print(f'Skip {base}: no curves selected by components in mask')
+        return
 
 
 def main():
@@ -186,49 +245,9 @@ def main():
         print(f'No files found in {folder} matching {pattern}')
         return
 
-    # Accumulate per-group lists of per-file means
-    groups_means: Dict[str, Dict[int, List[np.ndarray]]] = {}
-
+    # Process each file independently, generating per-component outputs
     for path in files:
-        base = os.path.splitext(os.path.basename(path))[0]
-        grp = file_group_from_name(base)
-        _, seg_mean, _ = process_file(path)
-        if seg_mean is None:
-            continue
-        d = groups_means.setdefault(grp, {0: [], 1: [], 2: []})
-        for s in [0, 1, 2]:
-            if s in seg_mean:
-                d[s].append(seg_mean[s])
-
-    if not groups_means:
-        print('No group data to plot')
-        return
-
-    # Plot merged group averages: HOLD only
-    os.makedirs(out_dir, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(8, 4.2), dpi=150)
-    for grp, seg_dict in groups_means.items():
-        arrs = seg_dict.get(1, [])
-        if not arrs:
-            continue
-        min_len = min(len(a) for a in arrs)
-        A = np.vstack([a[:min_len] for a in arrs])
-        mean = np.nanmean(A, axis=0)
-        std = np.nanstd(A, axis=0)
-        x = np.linspace(0, 1, min_len)
-        color = GROUP_COLORS.get(grp, None)
-        ax.plot(x, mean * 1e6, label=grp, color=color)
-        ax.fill_between(x, (mean - std) * 1e6, (mean + std) * 1e6,
-                        color=color, alpha=0.15, linewidth=0)
-    ax.set_title('Hold — group masked mean height (measured)')
-    ax.set_xlabel('normalized progress')
-    ax.set_ylabel('height (µm)')
-    ax.legend(loc='upper right')
-    fig.tight_layout()
-    out_group = os.path.join(out_dir, 'group_hold_masked_mean_height_curves.png')
-    fig.savefig(out_group, dpi=150)
-    plt.close(fig)
-    print(f'Saved group hold curves: {out_group}')
+        process_file(path)
 
 
 if __name__ == '__main__':

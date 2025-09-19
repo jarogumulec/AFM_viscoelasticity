@@ -58,12 +58,12 @@ df['force_filtered'] = gaussian_filter1d(df['force'], sigma=50)
 # plt.show()
 
 
-sns.lineplot(df, x='height (measured)', y='force', hue='segment', palette='tab10')
-plt.show()
-
-
-
-
-
-# sns.lineplot(df, x='time', y='force_filtered', hue='segment', palette='tab10')
+# sns.lineplot(df, x='height (measured)', y='force', hue='segment', palette='tab10')
 # plt.show()
+
+
+
+
+
+sns.lineplot(df, x='time', y='force_filtered', hue='segment', palette='tab10')
+plt.show()
